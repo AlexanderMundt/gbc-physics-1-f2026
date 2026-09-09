@@ -13,8 +13,12 @@ int main()
         BeginDrawing();
         ClearBackground(WHITE);
 
+        DrawCircle(50, 100, 25.0f, GREEN);
+        DrawCircle(150, 250, 25.0f, GREEN);
+        DrawLine(50, 100, 150, 250, LIME);
         DrawCircleV(GetMousePosition(), 20.0f, RED);
-        DrawText("Alexander Mundt 10163288", 650, 750, 20, BLUE);
+        //int x = MeasureText("Alexander Mundt 10163288", 20);
+        DrawText("Alexander Mundt 10163288", 495, 755, 20, BLUE);
 
         EndDrawing();
     }
