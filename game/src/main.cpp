@@ -4,7 +4,7 @@
 
 int main()
 {
-    InitWindow(800, 800, "Physics-1");
+    InitWindow(800, 800, "Alexander Mundt");
     InitAudioDevice();
     SetTargetFPS(60);
 
@@ -14,6 +14,7 @@ int main()
         ClearBackground(WHITE);
 
         DrawCircleV(GetMousePosition(), 20.0f, RED);
+        DrawText("Alexander Mundt 10163288", 650, 750, 20, BLUE);
 
         EndDrawing();
     }
