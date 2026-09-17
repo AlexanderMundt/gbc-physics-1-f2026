@@ -40,9 +40,16 @@ int main()
 
         //GUI
         DrawText(TextFormat("Launch Angle %.1f", launchAng), 32.0f, 30.0f, 16, DARKGRAY);
+        GuiSlider(Rectangle{ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
+
         DrawText(TextFormat("Launch Speed %.1f", launchSpd), 32.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider({ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
-        GuiSlider({ 20.0f, 120.0f, 160.0f, 40.0f }, "10", "300", &launchSpd, 10.0f, 300.0f);
+        GuiSlider(Rectangle{ 20.0f, 120.0f, 160.0f, 40.0f }, "10", "300", &launchSpd, 10.0f, 300.0f);
+
+        DrawText(TextFormat("Launch PosX %.0f", launchPos.x), 252.0f, 30.0f, 16, DARKGRAY);
+        GuiSlider(Rectangle{ 240.0f, 50.0f, 160.0f, 40.0f }, "0", "800", &launchPos.x, 0.0f, 800.0f);
+
+        DrawText(TextFormat("Launch PosY %.0f", launchPos.y), 252.0f, 100.0f, 16, DARKGRAY);
+        GuiSlider(Rectangle{ 240.0f, 120.0f, 160.0f, 40.0f }, "0", "800", &launchPos.y, 0.0f, 800.0f);
 
         //Render launchVel as a line from launchPos to launchPos + launchVel
         DrawCircleV(launchPos, 20.0f, GRAY);
@@ -53,6 +60,9 @@ int main()
         //EX:
         //An illistration of a rotated vector
         //DrawLineEx(exPos, exPos + exDir * 100.0f, 4.0f, ORANGE);
+
+        //My Name - rendered last so it is not blocked by anything
+        DrawText("Alexander Mundt 101632886", 575.0f, 775.0f, 16, DARKBLUE);
 
         EndDrawing();
     }
