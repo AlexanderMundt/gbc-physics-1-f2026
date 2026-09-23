@@ -13,7 +13,7 @@ int main()
         BeginDrawing();
         ClearBackground(WHITE);
 
-        DrawCircleV(GetMousePosition(), 20.0f, RED);
+        //WEEK3
 
         EndDrawing();
     }
