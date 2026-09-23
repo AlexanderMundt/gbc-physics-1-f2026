@@ -10,10 +10,13 @@ int main()
 
     while (!WindowShouldClose())
     {
+        float tt = GetTime();       //Total time - time since the window was initialized
+        float dt = GetFrameTime();  //Frame time - 16.66 ms at 60 fps
+
         BeginDrawing();
         ClearBackground(WHITE);
 
-        //WEEK3
+        DrawFPS(720, 8);
 
         EndDrawing();
     }
