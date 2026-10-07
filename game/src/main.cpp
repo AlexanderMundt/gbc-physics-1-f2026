@@ -12,6 +12,32 @@ EDITED ON: OCT 7th 2026
 
 #include <vector>
 #include <cmath>
+#include <cassert>
+
+enum ColliderType
+{
+    COLLIDER_TYPE_NONE = 0,
+    COLLIDER_TYPE_CIRCLE = 1,
+};
+
+struct Collider
+{
+    ColliderType type;
+    union
+    {
+        //Cirlce collider
+        struct
+        {
+            float radius;
+        };
+        ////Box collider
+        //struct
+        //{
+        //    float width;
+        //    float height;
+        //};
+    };
+};
 
 //1.a b c d
 struct PhysicsBody
@@ -19,42 +45,40 @@ struct PhysicsBody
     Vector2 position;
     Vector2 velocity;
     Vector2 accel;
+
+    float gravityScale;
     float drag;
     float mass;
 
-    Color color;
+    Collider collider;
+    bool collision;
 
     //For 5.
     std::vector<Vector2> pathToPlot;
-
-    PhysicsBody()
-    {
-        position = Vector2Zeros;
-        velocity = Vector2Zeros;
-        accel = Vector2Zeros;
-        drag = 0.0f;
-        mass = 0.0f;
-
-        color = BLACK;
-
-        pathToPlot = std::vector<Vector2>();
-        pathToPlot.push_back(position);
-    }
 
     PhysicsBody(Vector2 pos, Vector2 vel)
     {
         position = pos;
         velocity = vel;
         accel = Vector2Zeros;
-        drag = 0.0f;
-        mass = 0.0f;
 
-        color = BLACK;
+        gravityScale = 0.0f;
+        drag = 1.0f;
+        mass = 1.0f;
+
+        collider = Collider();
+        collision = false;
 
         pathToPlot = std::vector<Vector2>();
         pathToPlot.push_back(position);
     }
 };
+
+bool HitTestCircles(Vector2 posA, float radiusA, Vector2 posB, float radiusB)
+{
+    //Lab Exercise 3 TODO -- complete this function, VERY similar to raylib's CheckCollisionCircles function
+    return false;
+}
 
 //Constant
 constexpr float GRAVITY = 9.81f;
@@ -71,9 +95,16 @@ int main()
     float launchAng = 0.0f;
     float launchSpd = 5.0f;
     float launchDrag = 1.0f;
+    float startMass = 1.0f;
 
     //For the launched projectiles
     std::vector<PhysicsBody> bodies;
+    {
+        PhysicsBody body = PhysicsBody(Vector2(400.0f, 400.0f), Vector2Zeros);
+        body.collider.type = COLLIDER_TYPE_CIRCLE;
+        body.collider.radius = 20.0f;
+        bodies.push_back(body);
+    }
 
     //2.b a
     float tt = 0.0f;
@@ -95,8 +126,13 @@ int main()
         {
             PhysicsBody body = PhysicsBody(launchPos, launchVel);
             body.accel = gravity;
+
+            body.gravityScale = 1.0f;
             body.drag = launchDrag;
-            body.color = RED;
+            body.mass = startMass;
+
+            body.collider.type = COLLIDER_TYPE_CIRCLE;
+            body.collider.radius = 20.0f;
 
             bodies.push_back(body);
         }
@@ -104,9 +140,26 @@ int main()
         //3.
         for (PhysicsBody& b : bodies)
         {
-            b.velocity += Vector2Scale(b.accel, dt);
+            b.velocity += b.accel * b.gravityScale * dt;
             b.velocity *= powf(b.drag, dt);
             b.position += Vector2Scale(b.velocity, dt);
+            
+            b.collision = false;
+        }
+
+        //Checks all UNIQUE pairings
+        for (size_t i = 0; i < bodies.size(); i++)
+        {
+            for (size_t j = i + 1; j < bodies.size(); j++)
+            {
+                PhysicsBody& a = bodies[i];
+                PhysicsBody& b = bodies[j];
+                //Lab Exercise 3 TODO -- Replace CheckCollisionCircles with HitTestCircles
+                //bool collision = CheckCollisionCircles(a.position, a.collider.radius, b.position, b.collider.radius);
+                bool collision = HitTestCircles(a.position, a.collider.radius, b.position, b.collider.radius);
+                a.collision |= collision;
+                b.collision |= collision;
+            }
         }
 
         BeginDrawing();
@@ -120,8 +173,13 @@ int main()
         //3.
         for (PhysicsBody& b : bodies)
         {
-            //Draw the projectile at the new calculated position
-            DrawCircleV(b.position, 15.0f, b.color);
+            assert(b.collider.type != COLLIDER_TYPE_NONE);
+            if (b.collider.type == COLLIDER_TYPE_CIRCLE)
+            {
+                Color c = b.collision ? RED : GREEN;
+                //Draw the projectile at the new calculated position
+                DrawCircleV(b.position, b.collider.radius, c);
+            }
 
             //Add that position to the vector of points that we will draw a line on
             b.pathToPlot.push_back(b.position);
