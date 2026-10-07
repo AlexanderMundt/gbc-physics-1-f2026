@@ -3,55 +3,61 @@ Author:     Alexander Mundt 101632886
 Class:      GAME2005
 Professor:  Connor Smiley
 Assignment: Lab Exercise 2
+
+EDITED ON: OCT 7th 2026
 */
 #include "raylib.h"
 #include "raymath.h"
 #include "raygui.h"
 
 #include <vector>
+#include <cmath>
 
 //1.a b c d
 struct PhysicsBody
 {
     Vector2 position;
     Vector2 velocity;
-    Vector2 drag;
+    Vector2 accel;
+    float drag;
     float mass;
 
+    Color color;
+
     //For 5.
-    std::vector<Vector2>* pathToPlot;
+    std::vector<Vector2> pathToPlot;
 
     PhysicsBody()
     {
         position = Vector2Zeros;
         velocity = Vector2Zeros;
-        drag = Vector2Zeros;
+        accel = Vector2Zeros;
+        drag = 0.0f;
         mass = 0.0f;
 
-        pathToPlot = new std::vector<Vector2>();
-        pathToPlot->push_back(position);
+        color = BLACK;
+
+        pathToPlot = std::vector<Vector2>();
+        pathToPlot.push_back(position);
     }
 
     PhysicsBody(Vector2 pos, Vector2 vel)
     {
         position = pos;
         velocity = vel;
-        drag = Vector2Zeros;
+        accel = Vector2Zeros;
+        drag = 0.0f;
         mass = 0.0f;
 
-        pathToPlot = new std::vector<Vector2>();
-        pathToPlot->push_back(position);
-    }
+        color = BLACK;
 
-    ~PhysicsBody()
-    {
-        delete pathToPlot;
+        pathToPlot = std::vector<Vector2>();
+        pathToPlot.push_back(position);
     }
 };
 
 //Constant
-constexpr float GRAVITY = -9.81f;
-constexpr float COSMETIC_LINE_LENGTHENER = 10.0f;
+constexpr float GRAVITY = 9.81f;
 
 int main()
 {
@@ -64,9 +70,10 @@ int main()
     Vector2 launchVel = Vector2Zeros;
     float launchAng = 0.0f;
     float launchSpd = 5.0f;
+    float launchDrag = 1.0f;
 
-    //For the launched projectile
-    PhysicsBody* pb = nullptr;
+    //For the launched projectiles
+    std::vector<PhysicsBody> bodies;
 
     //2.b a
     float tt = 0.0f;
@@ -86,20 +93,20 @@ int main()
 
         if (IsKeyPressed(KEY_SPACE))
         {
-            //Clean up
-            if (pb != nullptr)
-            {
-                delete pb;
-            }
-            pb = new PhysicsBody(launchPos, launchVel);
+            PhysicsBody body = PhysicsBody(launchPos, launchVel);
+            body.accel = gravity;
+            body.drag = launchDrag;
+            body.color = RED;
+
+            bodies.push_back(body);
         }
 
         //3.
-        if (pb != nullptr)
+        for (PhysicsBody& b : bodies)
         {
-            //Use negate here to make sure gravity makes the projectile go DOWN on the screen
-            pb->velocity += Vector2Scale(Vector2Negate(gravity), dt);
-            pb->position += pb->velocity;
+            b.velocity += Vector2Scale(b.accel, dt);
+            b.velocity *= powf(b.drag, dt);
+            b.position += Vector2Scale(b.velocity, dt);
         }
 
         BeginDrawing();
@@ -109,23 +116,22 @@ int main()
         //Launch point circle and projection lines
         DrawCircleV(launchPos, 20.0f, RED);
         DrawLineEx(launchPos, launchPos + launchVel, 5.0f, ORANGE);
-        DrawLineEx(launchPos, launchPos + launchVel * COSMETIC_LINE_LENGTHENER, 2.0f, PINK);
         
         //3.
-        if (pb != nullptr)
+        for (PhysicsBody& b : bodies)
         {
             //Draw the projectile at the new calculated position
-            DrawCircleV(pb->position, 15.0f, BLUE);
+            DrawCircleV(b.position, 15.0f, b.color);
 
             //Add that position to the vector of points that we will draw a line on
-            pb->pathToPlot->push_back(pb->position);
+            b.pathToPlot.push_back(b.position);
 
             //5.
             //Plot the path that the projectile has traveled 
-            for (int i = 0, j = 1; j < pb->pathToPlot->size(); i++, j++)
+            for (int i = 0, j = 1; j < b.pathToPlot.size(); i++, j++)
             {
                 //From previous pos(i) to current pos(j)
-                DrawLineEx(pb->pathToPlot->at(i), pb->pathToPlot->at(j), 1.5f, SKYBLUE);
+                DrawLineEx(b.pathToPlot.at(i), b.pathToPlot.at(j), 1.5f, SKYBLUE);
             }
         }
 
@@ -134,7 +140,7 @@ int main()
         GuiSlider(Rectangle{ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
         
         DrawText(TextFormat("Launch Speed %.1f", launchSpd), 32.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 20.0f, 120.0f, 160.0f, 40.0f }, "5", "20", &launchSpd, 5.0f, 20.0f);
+        GuiSlider(Rectangle{ 20.0f, 120.0f, 160.0f, 40.0f }, "20", "200", &launchSpd, 20.0f, 200.0f);
         
         DrawText(TextFormat("Launch PosX %.0f", launchPos.x), 252.0f, 30.0f, 16, DARKGRAY);
         GuiSlider(Rectangle{ 240.0f, 50.0f, 160.0f, 40.0f }, "0", "800", &launchPos.x, 0.0f, 800.0f);
@@ -144,11 +150,10 @@ int main()
 
         //4.
         DrawText(TextFormat("Gravity %.2f", gravity.y), 472.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 460.0f, 50.0f, 160.0f, 40.0f }, "-20", "20", &gravity.y, -20.0f, 20.0f);
+        GuiSlider(Rectangle{ 460.0f, 50.0f, 160.0f, 40.0f }, "-250", "250", &gravity.y, -250.0f, 250.0f);
 
-        DrawText(TextFormat("Note: The smaller orange line represents the actual velocity\n\t\tand the"
-            " pink line is to help visuallize the amount of force\nCosmetic Multiplier: %.2f", 
-            COSMETIC_LINE_LENGTHENER), 10.0f, 740.0f, 14, BLACK);
+        DrawText(TextFormat("Drag %.1f", launchDrag), 472.0f, 100.0f, 16, DARKGRAY);
+        GuiSlider(Rectangle{ 460.0f, 120.0f, 160.0f, 40.0f }, "0.0", "1.0", &launchDrag, 0.0f, 1.0f);
 
         EndDrawing();
     }
