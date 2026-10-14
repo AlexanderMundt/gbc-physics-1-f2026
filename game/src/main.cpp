@@ -1,23 +1,16 @@
-/*
-Author:     Alexander Mundt 101632886
-Class:      GAME2005
-Professor:  Connor Smiley
-Assignment: Lab Exercise 2
-
-EDITED ON: OCT 7th 2026
-*/
 #include "raylib.h"
 #include "raymath.h"
 #include "raygui.h"
 
+#include <array>
 #include <vector>
-#include <cmath>
 #include <cassert>
 
 enum ColliderType
 {
-    COLLIDER_TYPE_NONE = 0,
-    COLLIDER_TYPE_CIRCLE = 1,
+    COLLIDER_TYPE_NONE,
+    COLLIDER_TYPE_CIRCLE,
+    COLLIDER_TYPE_PLANE
 };
 
 struct Collider
@@ -25,193 +18,123 @@ struct Collider
     ColliderType type;
     union
     {
-        //Cirlce collider
         struct
         {
             float radius;
         };
-        ////Box collider
-        //struct
-        //{
-        //    float width;
-        //    float height;
-        //};
+        struct
+        {
+            Vector2 normal;
+        };
     };
 };
 
-//1.a b c d
 struct PhysicsBody
 {
-    Vector2 position;
-    Vector2 velocity;
-    Vector2 accel;
+    Vector2 pos;
+    Vector2 vel;
+    Vector2 acc;
 
-    float gravityScale;
-    float drag;
+    float gravity_scale;
     float mass;
+    float drag;
 
     Collider collider;
     bool collision;
-
-    //For 5.
-    std::vector<Vector2> pathToPlot;
-
-    PhysicsBody(Vector2 pos, Vector2 vel)
-    {
-        position = pos;
-        velocity = vel;
-        accel = Vector2Zeros;
-
-        gravityScale = 0.0f;
-        drag = 1.0f;
-        mass = 1.0f;
-
-        collider = Collider();
-        collision = false;
-
-        pathToPlot = std::vector<Vector2>();
-        pathToPlot.push_back(position);
-    }
 };
 
-bool HitTestCircles(Vector2 posA, float radiusA, Vector2 posB, float radiusB)
+constexpr Vector2 GRAVITY = { 0.0f, 100.0f };
+
+bool HitTestCircles(Vector2 pos_a, float radius_a, Vector2 pos_b, float radius_b)
 {
-    //Lab Exercise 3 TODO -- complete this function, VERY similar to raylib's CheckCollisionCircles function
+    // Lab Exercise 3 TODO -- complete this function, VERY similar to raylib's CheckCollisionCircles function!
     return false;
 }
 
-//Constant
-constexpr float GRAVITY = 9.81f;
+bool HitTestCirclePlane(Vector2 pos_circle, float radius, Vector2 pos_plane, Vector2 normal)
+{
+    // Lab Exercise 4 TODO -- complete this function
+    return false;
+}
+
+void InitBodies(std::vector<PhysicsBody>* bodies);
 
 int main()
 {
+    std::vector<PhysicsBody> bodies;
+    InitBodies(&bodies);
+
     InitWindow(800, 800, "Physics-1");
     InitAudioDevice();
     SetTargetFPS(60);
 
-    Vector2 launchPos = { 100.0f, 700.0f };
-    Vector2 launchDir = Vector2Zeros;
-    Vector2 launchVel = Vector2Zeros;
-    float launchAng = 0.0f;
-    float launchSpd = 5.0f;
-    float launchDrag = 1.0f;
-    float startMass = 1.0f;
-
-    //For the launched projectiles
-    std::vector<PhysicsBody> bodies;
-    {
-        PhysicsBody body = PhysicsBody(Vector2(400.0f, 400.0f), Vector2Zeros);
-        body.collider.type = COLLIDER_TYPE_CIRCLE;
-        body.collider.radius = 20.0f;
-        bodies.push_back(body);
-    }
-
-    //2.b a
-    float tt = 0.0f;
-    float dt = 0.0f;
-
-    //2.c
-    Vector2 gravity = { 0.0f, GRAVITY };
-
     while (!WindowShouldClose())
     {
-        //2.b a
-        tt = GetTime();       //Total time - time since the window was initialized
-        dt = GetFrameTime();  //Frame time - 16.66ms / 0.016s at 60 fps
+        float dt = GetFrameTime();
 
-        launchDir = Vector2Rotate(Vector2UnitX, -launchAng * DEG2RAD);
-        launchVel = launchDir * launchSpd;
-
-        if (IsKeyPressed(KEY_SPACE))
+        for (PhysicsBody& body : bodies)
         {
-            PhysicsBody body = PhysicsBody(launchPos, launchVel);
-            body.accel = gravity;
+            body.acc = GRAVITY;
+            body.vel += body.acc * body.gravity_scale * dt;
+            body.vel *= powf(body.drag, dt);
+            body.pos += body.vel * dt;
 
-            body.gravityScale = 1.0f;
-            body.drag = launchDrag;
-            body.mass = startMass;
-
-            body.collider.type = COLLIDER_TYPE_CIRCLE;
-            body.collider.radius = 20.0f;
-
-            bodies.push_back(body);
+            body.collision = false;
         }
 
-        //3.
-        for (PhysicsBody& b : bodies)
-        {
-            b.velocity += b.accel * b.gravityScale * dt;
-            b.velocity *= powf(b.drag, dt);
-            b.position += Vector2Scale(b.velocity, dt);
-            
-            b.collision = false;
-        }
-
-        //Checks all UNIQUE pairings
         for (size_t i = 0; i < bodies.size(); i++)
         {
             for (size_t j = i + 1; j < bodies.size(); j++)
             {
                 PhysicsBody& a = bodies[i];
                 PhysicsBody& b = bodies[j];
-                //Lab Exercise 3 TODO -- Replace CheckCollisionCircles with HitTestCircles
-                //bool collision = CheckCollisionCircles(a.position, a.collider.radius, b.position, b.collider.radius);
-                bool collision = HitTestCircles(a.position, a.collider.radius, b.position, b.collider.radius);
+
+                // Lab Exercise 4 TODO -- ensure HitTestCirclePlane works correctly!
+                bool collision = HitTestCirclePlane(a.pos, a.collider.radius, b.pos, b.collider.normal);
                 a.collision |= collision;
                 b.collision |= collision;
             }
         }
 
+        // Hard-coding data to visualize circle-plane projection
+        // In the future, we will make our nested collision loop handle all permutations of collision geometry arrangements (ie plane-circle vs circle-plane)
+        PhysicsBody& plane = bodies[1];
+
+        if (IsKeyDown(KEY_E))
+            plane.collider.normal = Vector2Rotate(plane.collider.normal, 100.0f * DEG2RAD * dt);
+        if (IsKeyDown(KEY_Q))
+            plane.collider.normal = Vector2Rotate(plane.collider.normal, -100.0f * DEG2RAD * dt);
+
+        Vector2 to_circle = GetMousePosition() - plane.pos;
+        float scalar_proj = Vector2DotProduct(to_circle, plane.collider.normal);
+        Color test_color = scalar_proj >= 20.0f ? BLUE : DARKBLUE;
+        Vector2 proj = plane.pos + plane.collider.normal * Vector2DotProduct(to_circle, plane.collider.normal);
+        // Lab Exercise 4 TODO - test if the distance from projection to plane position is less than the radius of circle
+        // (Take this logic and generalize it into the HitTestCirclePlane function)!
+        // If the falling green circle (NOT YOUR MOUSE) turns red upon collision with the plane, you've done LE4 correctly)!
+
         BeginDrawing();
         ClearBackground(WHITE);
-        DrawFPS(720, 8);
-        
-        //Launch point circle and projection lines
-        DrawCircleV(launchPos, 20.0f, RED);
-        DrawLineEx(launchPos, launchPos + launchVel, 5.0f, ORANGE);
-        
-        //3.
-        for (PhysicsBody& b : bodies)
+        DrawFPS(720, 10);
+
+        DrawCircleV(GetMousePosition(), 20.0f, SKYBLUE);
+        DrawCircleV(proj, 20.0f, test_color);
+
+        for (const PhysicsBody& body : bodies)
         {
-            assert(b.collider.type != COLLIDER_TYPE_NONE);
-            if (b.collider.type == COLLIDER_TYPE_CIRCLE)
+            Color color = body.collision ? RED : GREEN;
+            const Collider& collider = body.collider;
+            if (collider.type == COLLIDER_TYPE_CIRCLE)
             {
-                Color c = b.collision ? RED : GREEN;
-                //Draw the projectile at the new calculated position
-                DrawCircleV(b.position, b.collider.radius, c);
+                DrawCircleV(body.pos, collider.radius, color);
             }
-
-            //Add that position to the vector of points that we will draw a line on
-            b.pathToPlot.push_back(b.position);
-
-            //5.
-            //Plot the path that the projectile has traveled 
-            for (int i = 0, j = 1; j < b.pathToPlot.size(); i++, j++)
+            if (collider.type == COLLIDER_TYPE_PLANE)
             {
-                //From previous pos(i) to current pos(j)
-                DrawLineEx(b.pathToPlot.at(i), b.pathToPlot.at(j), 1.5f, SKYBLUE);
+                Vector2 perp = { collider.normal.y, -collider.normal.x };
+                DrawLineEx(body.pos - perp * 100.0f, body.pos + perp * 100.0f, 4.0f, color);
+                DrawLineEx(body.pos, body.pos + collider.normal * 50.0f, 2.0f, ORANGE);
             }
         }
-
-        //GUI
-        DrawText(TextFormat("Launch Angle %.1f", launchAng), 32.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
-        
-        DrawText(TextFormat("Launch Speed %.1f", launchSpd), 32.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 20.0f, 120.0f, 160.0f, 40.0f }, "20", "200", &launchSpd, 20.0f, 200.0f);
-        
-        DrawText(TextFormat("Launch PosX %.0f", launchPos.x), 252.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 240.0f, 50.0f, 160.0f, 40.0f }, "0", "800", &launchPos.x, 0.0f, 800.0f);
-        
-        DrawText(TextFormat("Launch PosY %.0f", launchPos.y), 252.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 240.0f, 120.0f, 160.0f, 40.0f }, "0", "800", &launchPos.y, 0.0f, 800.0f);
-
-        //4.
-        DrawText(TextFormat("Gravity %.2f", gravity.y), 472.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 460.0f, 50.0f, 160.0f, 40.0f }, "-250", "250", &gravity.y, -250.0f, 250.0f);
-
-        DrawText(TextFormat("Drag %.1f", launchDrag), 472.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 460.0f, 120.0f, 160.0f, 40.0f }, "0.0", "1.0", &launchDrag, 0.0f, 1.0f);
 
         EndDrawing();
     }
@@ -219,4 +142,38 @@ int main()
     CloseAudioDevice();
     CloseWindow();
     return 0;
+}
+
+void InitBodies(std::vector<PhysicsBody>* bodies)
+{
+    {
+        PhysicsBody circle{};
+
+        circle.pos = { 400.0f, 400.0f };
+        circle.vel = Vector2Zeros;
+
+        circle.gravity_scale = 1.0f;
+        circle.drag = 1.0f;
+
+        circle.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle.collider.radius = 20.0f;
+
+        bodies->push_back(circle);
+    }
+
+    {
+        PhysicsBody plane{};
+        plane.pos = { 400.0f, 600.0f };
+        plane.vel = Vector2Zeros;
+        plane.gravity_scale = 0.0f;
+        plane.collider.type = COLLIDER_TYPE_PLANE;
+        plane.collider.normal = Vector2UnitY * -1.0f;
+        bodies->push_back(plane);
+    }
+
+    for (const PhysicsBody& body : *bodies)
+    {
+        // Ensure data is valid before first body update
+        assert(body.collider.type != COLLIDER_TYPE_NONE);
+    }
 }
