@@ -2,9 +2,7 @@
 Author:     Alexander Mundt 101632886
 Class:      GAME2005
 Professor:  Connor Smiley
-Assignment: Lab Exercise 2
-
-EDITED ON: OCT 7th 2026
+Assignment: Lab Exercise 3
 */
 #include "raylib.h"
 #include "raymath.h"
@@ -14,32 +12,28 @@ EDITED ON: OCT 7th 2026
 #include <cmath>
 #include <cassert>
 
+//1.
 enum ColliderType
 {
     COLLIDER_TYPE_NONE = 0,
     COLLIDER_TYPE_CIRCLE = 1,
 };
 
+//1.
 struct Collider
 {
     ColliderType type;
     union
     {
+        //2.
         //Cirlce collider
         struct
         {
             float radius;
         };
-        ////Box collider
-        //struct
-        //{
-        //    float width;
-        //    float height;
-        //};
     };
 };
 
-//1.a b c d
 struct PhysicsBody
 {
     Vector2 position;
@@ -50,10 +44,10 @@ struct PhysicsBody
     float drag;
     float mass;
 
+    //1.
     Collider collider;
     bool collision;
 
-    //For 5.
     std::vector<Vector2> pathToPlot;
 
     PhysicsBody(Vector2 pos, Vector2 vel)
@@ -76,8 +70,10 @@ struct PhysicsBody
 
 bool HitTestCircles(Vector2 posA, float radiusA, Vector2 posB, float radiusB)
 {
-    //Lab Exercise 3 TODO -- complete this function, VERY similar to raylib's CheckCollisionCircles function
-    return false;
+	Vector2 distanceAB = { posB.x - posA.x, posB.y - posA.y };
+	float squaredDistance = distanceAB.x * distanceAB.x + distanceAB.y * distanceAB.y;
+	float squaredRadiusSum = (radiusA + radiusB) * (radiusA + radiusB);
+    return squaredDistance <= squaredRadiusSum;
 }
 
 //Constant
@@ -97,25 +93,22 @@ int main()
     float launchDrag = 1.0f;
     float startMass = 1.0f;
 
-    //For the launched projectiles
     std::vector<PhysicsBody> bodies;
     {
+        //Our collision 'target'
         PhysicsBody body = PhysicsBody(Vector2(400.0f, 400.0f), Vector2Zeros);
         body.collider.type = COLLIDER_TYPE_CIRCLE;
         body.collider.radius = 20.0f;
         bodies.push_back(body);
     }
 
-    //2.b a
     float tt = 0.0f;
     float dt = 0.0f;
 
-    //2.c
     Vector2 gravity = { 0.0f, GRAVITY };
 
     while (!WindowShouldClose())
     {
-        //2.b a
         tt = GetTime();       //Total time - time since the window was initialized
         dt = GetFrameTime();  //Frame time - 16.66ms / 0.016s at 60 fps
 
@@ -137,7 +130,6 @@ int main()
             bodies.push_back(body);
         }
 
-        //3.
         for (PhysicsBody& b : bodies)
         {
             b.velocity += b.accel * b.gravityScale * dt;
@@ -148,14 +140,13 @@ int main()
         }
 
         //Checks all UNIQUE pairings
+        //3.
         for (size_t i = 0; i < bodies.size(); i++)
         {
             for (size_t j = i + 1; j < bodies.size(); j++)
             {
                 PhysicsBody& a = bodies[i];
                 PhysicsBody& b = bodies[j];
-                //Lab Exercise 3 TODO -- Replace CheckCollisionCircles with HitTestCircles
-                //bool collision = CheckCollisionCircles(a.position, a.collider.radius, b.position, b.collider.radius);
                 bool collision = HitTestCircles(a.position, a.collider.radius, b.position, b.collider.radius);
                 a.collision |= collision;
                 b.collision |= collision;
@@ -170,12 +161,12 @@ int main()
         DrawCircleV(launchPos, 20.0f, RED);
         DrawLineEx(launchPos, launchPos + launchVel, 5.0f, ORANGE);
         
-        //3.
         for (PhysicsBody& b : bodies)
         {
             assert(b.collider.type != COLLIDER_TYPE_NONE);
             if (b.collider.type == COLLIDER_TYPE_CIRCLE)
             {
+                //3.
                 Color c = b.collision ? RED : GREEN;
                 //Draw the projectile at the new calculated position
                 DrawCircleV(b.position, b.collider.radius, c);
@@ -184,7 +175,6 @@ int main()
             //Add that position to the vector of points that we will draw a line on
             b.pathToPlot.push_back(b.position);
 
-            //5.
             //Plot the path that the projectile has traveled 
             for (int i = 0, j = 1; j < b.pathToPlot.size(); i++, j++)
             {
@@ -206,7 +196,6 @@ int main()
         DrawText(TextFormat("Launch PosY %.0f", launchPos.y), 252.0f, 100.0f, 16, DARKGRAY);
         GuiSlider(Rectangle{ 240.0f, 120.0f, 160.0f, 40.0f }, "0", "800", &launchPos.y, 0.0f, 800.0f);
 
-        //4.
         DrawText(TextFormat("Gravity %.2f", gravity.y), 472.0f, 30.0f, 16, DARKGRAY);
         GuiSlider(Rectangle{ 460.0f, 50.0f, 160.0f, 40.0f }, "-250", "250", &gravity.y, -250.0f, 250.0f);
 
