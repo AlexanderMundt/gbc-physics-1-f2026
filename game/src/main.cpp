@@ -2,9 +2,7 @@
 Author:     Alexander Mundt 101632886
 Class:      GAME2005
 Professor:  Connor Smiley
-Assignment: Lab Exercise 2
-
-EDITED ON: OCT 7th 2026
+Assignment: Assignment 1
 */
 #include "raylib.h"
 #include "raymath.h"
@@ -12,8 +10,15 @@ EDITED ON: OCT 7th 2026
 
 #include <vector>
 #include <cmath>
+#include <cstdio>
+#include <cassert>
+#include <iostream>
 
-//1.a b c d
+//Constants
+constexpr float GRAVITY = 20.0f;
+constexpr float GROUND_Y = 700.0f;
+constexpr float LAUNCH_SPEED = 120.0f;
+
 struct PhysicsBody
 {
     Vector2 position;
@@ -24,7 +29,6 @@ struct PhysicsBody
 
     Color color;
 
-    //For 5.
     std::vector<Vector2> pathToPlot;
 
     PhysicsBody()
@@ -56,52 +60,126 @@ struct PhysicsBody
     }
 };
 
-//Constant
-constexpr float GRAVITY = 9.81f;
+struct Record
+{
+    float angle;
+    float range;
+    float time;
+
+	Record()
+	{
+		angle = 0.0f;
+		range = 0.0f;
+		time = 0.0f;
+	}
+
+	Record(float ang)
+	{
+		angle = ang;
+		range = CalculateRange();
+		time = CalculateTime();
+	}
+
+	float CalculateRange()
+	{
+		range = ((LAUNCH_SPEED * LAUNCH_SPEED) * sinf((2.0f * angle) * DEG2RAD)) / GRAVITY;
+		return range;
+	}
+
+	float CalculateTime()
+	{
+		time = (2.0f * LAUNCH_SPEED * sinf(angle * DEG2RAD)) / GRAVITY;
+		return time;
+	}
+};
+
+//CSV save/load functions
+static void SaveToCSV(const std::vector<Record>& records)
+{
+    float test_floats[] = { 1.1f, 2.2f, 3.3f, 4.4f, 5.5f };
+    int test_ints[] = { 1, 2, 3, 4, 5 };
+
+    char buffer[4096];
+    int offset = 0;
+
+	for (const Record& record : records)
+	{
+		offset += sprintf(buffer + offset, "%.4f,%.1f,%.4f\n", record.angle, record.range, record.time);
+	}
+
+    bool result = SaveFileText("./InputRecords.csv", buffer);
+    assert(result);
+}
+
+static void Load()
+{
+    float test_ints[5];
+    float test_floats[5];
+
+    char* buffer = LoadFileText("./Example.csv");
+
+    int offset = 0;
+    offset += 2 * sscanf(buffer + offset, "%i,%i,%i,%i,%i\n", &test_ints[0], &test_ints[1], &test_ints[2], &test_ints[3], &test_ints[4]);
+    offset += 2 * sscanf(buffer + offset, "%.1f,%.1f,%.1f,%.1f,%.1f\n", &test_floats[0], &test_floats[1], &test_floats[2], &test_floats[3], &test_floats[4]);
+
+}
 
 int main()
 {
-    InitWindow(800, 800, "Physics-1");
+    InitWindow(800, 800, "GAME-2005 Assignment1");
     InitAudioDevice();
     SetTargetFPS(60);
 
-    Vector2 launchPos = { 100.0f, 700.0f };
+    Vector2 launchPos = { 50.0f, GROUND_Y };
     Vector2 launchDir = Vector2Zeros;
     Vector2 launchVel = Vector2Zeros;
     float launchAng = 0.0f;
-    float launchSpd = 5.0f;
     float launchDrag = 1.0f;
 
     //For the launched projectiles
     std::vector<PhysicsBody> bodies;
 
-    //2.b a
+    //Records
+    std::vector<Record> inputRecords
+    {
+        { 0.0f },
+        { 3.1894f },
+        { 6.4192f },
+        { 9.7346f },
+        { 13.1925f },
+        { 16.8726f },
+        { 20.9026f },
+        { 25.5253f },
+        { 31.3614f },
+        { 45.0f },
+    };
+
+	//Write input records to a CSV
+	SaveToCSV(inputRecords);
+
+
+	//Time variables
     float tt = 0.0f;
     float dt = 0.0f;
 
-    //2.c
-    Vector2 gravity = { 0.0f, GRAVITY };
-
     while (!WindowShouldClose())
     {
-        //2.b a
         tt = GetTime();       //Total time - time since the window was initialized
         dt = GetFrameTime();  //Frame time - 16.66ms / 0.016s at 60 fps
 
         launchDir = Vector2Rotate(Vector2UnitX, -launchAng * DEG2RAD);
-        launchVel = launchDir * launchSpd;
+        launchVel = launchDir * LAUNCH_SPEED;
 
         if (IsKeyPressed(KEY_SPACE))
         {
             PhysicsBody body = PhysicsBody(launchPos, launchVel);
-            body.accel = gravity;
+            body.accel = { 0.0f, GRAVITY };;
             body.drag = launchDrag;
             body.color = RED;
 
             bodies.push_back(body);
         }
 
-        //3.
         for (PhysicsBody& b : bodies)
         {
             b.velocity += Vector2Scale(b.accel, dt);
@@ -117,16 +195,28 @@ int main()
         DrawCircleV(launchPos, 20.0f, RED);
         DrawLineEx(launchPos, launchPos + launchVel, 5.0f, ORANGE);
         
-        //3.
+        //Draw the ground
+		DrawLineEx(Vector2{ 0.0f, GROUND_Y }, Vector2{ 800.0f, GROUND_Y }, 2.0f, DARKGRAY);
+
         for (PhysicsBody& b : bodies)
         {
             //Draw the projectile at the new calculated position
             DrawCircleV(b.position, 15.0f, b.color);
 
-            //Add that position to the vector of points that we will draw a line on
-            b.pathToPlot.push_back(b.position);
+			//If the projectile has hit the ground stop it from moving
+			if (b.position.y > GROUND_Y)
+			{
+				b.color = GRAY;
+				b.accel = Vector2Zeros;
+				b.velocity = Vector2Zeros;
+			}
+			//Only add the position to the path vector if the projectile is still moving
+            else
+            {
+                //Add that position to the vector of points that we will draw a line on
+                b.pathToPlot.push_back(b.position);
+            }
 
-            //5.
             //Plot the path that the projectile has traveled 
             for (int i = 0, j = 1; j < b.pathToPlot.size(); i++, j++)
             {
@@ -138,22 +228,6 @@ int main()
         //GUI
         DrawText(TextFormat("Launch Angle %.1f", launchAng), 32.0f, 30.0f, 16, DARKGRAY);
         GuiSlider(Rectangle{ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
-        
-        DrawText(TextFormat("Launch Speed %.1f", launchSpd), 32.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 20.0f, 120.0f, 160.0f, 40.0f }, "20", "200", &launchSpd, 20.0f, 200.0f);
-        
-        DrawText(TextFormat("Launch PosX %.0f", launchPos.x), 252.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 240.0f, 50.0f, 160.0f, 40.0f }, "0", "800", &launchPos.x, 0.0f, 800.0f);
-        
-        DrawText(TextFormat("Launch PosY %.0f", launchPos.y), 252.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 240.0f, 120.0f, 160.0f, 40.0f }, "0", "800", &launchPos.y, 0.0f, 800.0f);
-
-        //4.
-        DrawText(TextFormat("Gravity %.2f", gravity.y), 472.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 460.0f, 50.0f, 160.0f, 40.0f }, "-250", "250", &gravity.y, -250.0f, 250.0f);
-
-        DrawText(TextFormat("Drag %.1f", launchDrag), 472.0f, 100.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 460.0f, 120.0f, 160.0f, 40.0f }, "0.0", "1.0", &launchDrag, 0.0f, 1.0f);
 
         EndDrawing();
     }
