@@ -17,6 +17,7 @@ Assignment: Assignment 1
 //Constants
 constexpr float GRAVITY = 20.0f;
 constexpr float GROUND_Y = 700.0f;
+constexpr Vector2 LAUNCH_POS = { 50.0f, GROUND_Y };
 constexpr float LAUNCH_SPEED = 120.0f;
 
 struct PhysicsBody
@@ -36,8 +37,8 @@ struct PhysicsBody
         position = Vector2Zeros;
         velocity = Vector2Zeros;
         accel = Vector2Zeros;
-        drag = 0.0f;
-        mass = 0.0f;
+        drag = 1.0f;
+        mass = 1.0f;
 
         color = BLACK;
 
@@ -50,8 +51,8 @@ struct PhysicsBody
         position = pos;
         velocity = vel;
         accel = Vector2Zeros;
-        drag = 0.0f;
-        mass = 0.0f;
+        drag = 1.0f;
+        mass = 1.0f;
 
         color = BLACK;
 
@@ -78,6 +79,11 @@ struct Record
 		angle = ang;
 		range = CalculateRange();
 		time = CalculateTime();
+	}
+
+	void SetAngle(float ang)
+	{
+		angle = ang;
 	}
 
 	float CalculateRange()
@@ -130,16 +136,10 @@ int main()
     InitAudioDevice();
     SetTargetFPS(60);
 
-    Vector2 launchPos = { 50.0f, GROUND_Y };
-    Vector2 launchDir = Vector2Zeros;
-    Vector2 launchVel = Vector2Zeros;
-    float launchAng = 0.0f;
-    float launchDrag = 1.0f;
-
     //For the launched projectiles
     std::vector<PhysicsBody> bodies;
 
-    //Records
+    //Input Records
     std::vector<Record> inputRecords
     {
         { 0.0f },
@@ -157,28 +157,39 @@ int main()
 	//Write input records to a CSV
 	SaveToCSV(inputRecords);
 
+    //Output Records
+	std::vector<Record> outputRecords;
+	for (const Record& iRec : inputRecords)
+	{
+		outputRecords.push_back(Record());
+		outputRecords.back().SetAngle(iRec.angle);
+	}
 
 	//Time variables
     float tt = 0.0f;
     float dt = 0.0f;
 
+    Vector2 launchDir = Vector2Zeros;
+    Vector2 launchVel = Vector2Zeros;
+
+    for (Record& oRec : outputRecords)
+    {
+        launchDir = Vector2Rotate(Vector2UnitX, -oRec.angle * DEG2RAD);
+        launchVel = launchDir * LAUNCH_SPEED;
+
+        PhysicsBody body = PhysicsBody(LAUNCH_POS, launchVel);
+
+        body.accel = { 0.0f, GRAVITY };
+        body.color = RED;
+
+
+        bodies.push_back(body);
+    }
+
     while (!WindowShouldClose())
     {
         tt = GetTime();       //Total time - time since the window was initialized
         dt = GetFrameTime();  //Frame time - 16.66ms / 0.016s at 60 fps
-
-        launchDir = Vector2Rotate(Vector2UnitX, -launchAng * DEG2RAD);
-        launchVel = launchDir * LAUNCH_SPEED;
-
-        if (IsKeyPressed(KEY_SPACE))
-        {
-            PhysicsBody body = PhysicsBody(launchPos, launchVel);
-            body.accel = { 0.0f, GRAVITY };;
-            body.drag = launchDrag;
-            body.color = RED;
-
-            bodies.push_back(body);
-        }
 
         for (PhysicsBody& b : bodies)
         {
@@ -192,8 +203,8 @@ int main()
         DrawFPS(720, 8);
         
         //Launch point circle and projection lines
-        DrawCircleV(launchPos, 20.0f, RED);
-        DrawLineEx(launchPos, launchPos + launchVel, 5.0f, ORANGE);
+        DrawCircleV(LAUNCH_POS, 20.0f, RED);
+        DrawLineEx(LAUNCH_POS, LAUNCH_POS + launchVel, 5.0f, ORANGE);
         
         //Draw the ground
 		DrawLineEx(Vector2{ 0.0f, GROUND_Y }, Vector2{ 800.0f, GROUND_Y }, 2.0f, DARKGRAY);
@@ -224,10 +235,6 @@ int main()
                 DrawLineEx(b.pathToPlot.at(i), b.pathToPlot.at(j), 1.5f, SKYBLUE);
             }
         }
-
-        //GUI
-        DrawText(TextFormat("Launch Angle %.1f", launchAng), 32.0f, 30.0f, 16, DARKGRAY);
-        GuiSlider(Rectangle{ 20.0f, 50.0f, 160.0f, 40.0f }, "0", "90", &launchAng, 0.0f, 90.0f);
 
         EndDrawing();
     }
