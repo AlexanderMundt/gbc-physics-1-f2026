@@ -1,3 +1,9 @@
+/*
+Author:     Alexander Mundt 101632886
+Class:      GAME2005
+Professor:  Connor Smiley
+Assignment: Lab Exercise 5
+*/
 #include "raylib.h"
 #include "raymath.h"
 #include "raygui.h"
