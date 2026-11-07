@@ -65,8 +65,8 @@ bool HitTestCircles(Vector2 pos_a, float radius_a, Vector2 pos_b, float radius_b
     {
         // 1) compute mtv magnitude by subtracting the distance between circles from the sum of their radii
         // 2) ensure mtv direction points *from* B *to* A so the mtv resolves A *from* B
-        Vector2 direction = Vector2UnitY;
-        float magnitude = 1.0f;
+        Vector2 direction = Vector2Normalize(pos_a - pos_b); //Normalize to get just the direction
+        float magnitude = (radius_a + radius_b) - Vector2Distance(pos_a, pos_b);
         *mtv = direction * magnitude;
     }
 
@@ -84,7 +84,9 @@ bool HitTestCirclePlane(Vector2 pos_circle, float radius, Vector2 pos_plane, Vec
     // mtv direction is plane normal
     if (collision && mtv != nullptr)
     {
-        *mtv = Vector2UnitY * -10.0f;
+		Vector2 direction = normal; //Push the circle in the direction of the plane's normal
+        float magnitude = scalar_proj;
+        *mtv = direction * magnitude;
     }
 
     return collision;
@@ -99,7 +101,7 @@ void InitBodiesCirclePlane(std::vector<PhysicsBody>* bodies);
 
 int main()
 {
-    InitWindow(800, 800, "Physics-1");
+    InitWindow(800, 800, "GAME-2005 Lab Exercise 5 - Alexander Mundt 101632886");
     InitAudioDevice();
     SetTargetFPS(60);
 
