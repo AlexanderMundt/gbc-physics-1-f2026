@@ -42,7 +42,7 @@ struct PhysicsBody
     Vector2 acc;
 
     float gravity_scale;
-    float mass;
+    float mass_inverse;
     float drag;
 
     Collider collider;
@@ -133,12 +133,14 @@ public:
     {
         circle1 = {};
         circle1.pos = { 400.0f, 400.0f };
+        circle1.mass_inverse = 1.0f;
         circle1.drag = 1.0f;
         circle1.collider.type = COLLIDER_TYPE_CIRCLE;
         circle1.collider.radius = 20.0f;
 
         circle2 = {};
         circle2.pos = { 400.0f, 200.0f };
+        circle2.mass_inverse = 1.0f;
         circle2.drag = 1.0f;
         circle2.collider.type = COLLIDER_TYPE_CIRCLE;
         circle2.collider.radius = 20.0f;
@@ -190,6 +192,7 @@ public:
     {
         circle = {};
         circle.pos = { 400.0f, 400.0f };
+        circle.mass_inverse = 1.0f;
         circle.gravity_scale = 1.0f;
         circle.drag = 1.0f;
         circle.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -298,6 +301,7 @@ public:
             PhysicsBody circle{};
             circle.pos = { 400.0f, 400.0f };
             circle.vel = Vector2Rotate(Vector2UnitY * -1.0f, GetRandomValue(-60, 60) * DEG2RAD) * 100.0f;
+            circle.mass_inverse = 1.0f;
             circle.gravity_scale = 1.0f;
             circle.drag = 1.0f;
             circle.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -322,28 +326,44 @@ public:
             for (size_t j = i; j < bodies.size(); j++)
             {
                 // Extra practice: change ball colour whenever it hits a wall!
-                PhysicsBody& a = bodies[i];
-                PhysicsBody& b = bodies[j];
+                PhysicsBody* a = &bodies[i];
+                PhysicsBody* b = &bodies[j];
 
-                if (a.collider.type == COLLIDER_TYPE_CIRCLE && b.collider.type == COLLIDER_TYPE_PLANE)
+                // No point in testing for collision between two static bodies
+                if (FloatEquals(a->mass_inverse, 0.0f), FloatEquals(b->mass_inverse, 0.0f)) continue;
+
+                // Demo-specific hack so we don't deal with circle-circle collision
+                if (a->collider.type == COLLIDER_TYPE_CIRCLE && b->collider.type == COLLIDER_TYPE_CIRCLE) continue;
+
+                Vector2 mtv = Vector2Zeros;
+                bool collision = false;
+                if (a->collider.type == COLLIDER_TYPE_CIRCLE && b->collider.type == COLLIDER_TYPE_PLANE)
                 {
-                    bool collision = HitTestCirclePlane(a.pos, a.collider.radius, b.pos, b.collider.normal);
-                    if (collision) a.vel = Vector2Reflect(a.vel, b.collider.normal);
+                    collision = HitTestCirclePlane(a->pos, a->collider.radius, b->pos, b->collider.normal, &mtv);
                 }
-                if (a.collider.type == COLLIDER_TYPE_PLANE && b.collider.type == COLLIDER_TYPE_CIRCLE)
+                if (a->collider.type == COLLIDER_TYPE_PLANE && b->collider.type == COLLIDER_TYPE_CIRCLE)
                 {
-                    bool collision = HitTestCirclePlane(b.pos, b.collider.radius, a.pos, a.collider.normal);
-                    if (collision) b.vel = Vector2Reflect(b.vel, a.collider.normal);
+                    collision = HitTestCirclePlane(b->pos, b->collider.radius, a->pos, a->collider.normal, &mtv);
+                }
+                a->collision = b->collision |= collision;
+
+                // Swap A and B if A is static because B MUST be dynamic
+                if (FloatEquals(a->mass_inverse, 0.0f))
+                {
+                    PhysicsBody* temp = a;  // Store the static entity
+                    a = b;                  // A is now the dynamic entity
+                    b = temp;               // B is now the static entity
+                }
+
+                // Apply mtv accordingly now that we've made some guarantees
+                // (This still isn't a generic algorithm, we're relying on the assumption that B is a plane)
+                // (Later we will make this generic once you've completed your LE5 so we have MTVs)
+                if (collision)
+                {
+                    a->vel = Vector2Reflect(a->vel, b->collider.normal);
                 }
             }
         }
-
-        // We could also do this a more naive way where we flip velocity direction based on the screen edge we're hitting,
-        // but we're physics programmers, therefore we used our plane colliders!!!
-        //for (PhysicsBody& body : bodies)
-        //{
-        //
-        //}
     }
 
     void Draw() final
