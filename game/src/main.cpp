@@ -39,10 +39,10 @@ struct PhysicsBody
 {
     Vector2 pos;
     Vector2 vel;
-    Vector2 acc;
+    Vector2 force;
 
     float gravity_scale;
-    float mass_inverse;
+    float mass;
     float drag;
 
     Collider collider;
@@ -58,10 +58,8 @@ bool HitTestCircles(Vector2 pos_a, float radius_a, Vector2 pos_b, float radius_b
     bool collision = CheckCollisionCircles(pos_a, radius_a, pos_b, radius_b);
     if (collision && mtv != nullptr)
     {
-        // 1) compute mtv magnitude by subtracting the distance between circles from the sum of their radii
-        // 2) ensure mtv direction points *from* B *to* A so the mtv resolves A *from* B
-        Vector2 direction = Vector2UnitY;
-        float magnitude = 1.0f;
+        Vector2 direction = Vector2Normalize(pos_a - pos_b);
+        float magnitude = (radius_a + radius_b) - Vector2Distance(pos_a, pos_b);
         *mtv = direction * magnitude;
     }
 
@@ -75,11 +73,9 @@ bool HitTestCirclePlane(Vector2 pos_circle, float radius, Vector2 pos_plane, Vec
     float scalar_proj = Vector2DotProduct(to_circle, normal);
     bool collision = scalar_proj <= radius;
 
-    // mtv magnitude is length of projection of circle along plane normal (the scalar_proj variable)
-    // mtv direction is plane normal
     if (collision && mtv != nullptr)
     {
-        *mtv = Vector2UnitY * -10.0f;
+        *mtv = normal * (radius - scalar_proj);
     }
 
     return collision;
@@ -87,10 +83,33 @@ bool HitTestCirclePlane(Vector2 pos_circle, float radius, Vector2 pos_plane, Vec
 
 void UpdateMotion(PhysicsBody* body, float dt)
 {
-    body->acc = GRAVITY;
-    body->vel += body->acc * body->gravity_scale * dt;
+    // Don't update static entities (plus you'd get a divide-by-zero error if you did)!
+    if (FloatEquals(body->mass, 0.0f)) return;
+
+    // Gravity is the ONLY force we are applying automatically in our engine
+    //Vector2 fg = GRAVITY * body->gravity_scale * body->mass; // F = ma
+    //body->force += fg;
+
+    // Additional forces are accumulated manually
+    //Vector2 acc = body->force / body->mass; // a = F / m
+
+    // Can accumulate gravitational acceleration directly instead of deriving it from force of gravity;
+    // Above, we multiply g by m, only to divide F by m when calculating a. m / m cancels!
+    // 
+    // Intuitively, why does this work?
+    // Although heavier objects experience a larger force of gravity,
+    // they are also more resistant to change (due to having a larger mass)
+    // More gravitational force, but also more resistant to change = same gravitational *acceleration* for all objects.
+
+    // TODO -- revert to mass_inverse because it makes impulse calculations easier!
+    Vector2 acc = body->force / body->mass;
+    acc += GRAVITY * body->gravity_scale;
+
+    body->vel += acc * dt;
     body->vel *= powf(body->drag, dt);
     body->pos += body->vel * dt;
+
+    body->force = Vector2Zeros;
 }
 
 void DrawBody(PhysicsBody body, Color color)
@@ -133,14 +152,14 @@ public:
     {
         circle1 = {};
         circle1.pos = { 400.0f, 400.0f };
-        circle1.mass_inverse = 1.0f;
+        circle1.mass = 1.0f;
         circle1.drag = 1.0f;
         circle1.collider.type = COLLIDER_TYPE_CIRCLE;
         circle1.collider.radius = 20.0f;
 
         circle2 = {};
-        circle2.pos = { 400.0f, 200.0f };
-        circle2.mass_inverse = 1.0f;
+        circle2.pos = { 400.0f, 600.0f };
+        circle2.mass = 1.0f;
         circle2.drag = 1.0f;
         circle2.collider.type = COLLIDER_TYPE_CIRCLE;
         circle2.collider.radius = 20.0f;
@@ -156,7 +175,6 @@ public:
         if (IsKeyPressed(KEY_M)) use_mouse = !use_mouse;
         if (use_mouse) circle2.pos = GetMousePosition();
 
-        // LE5: Should be able to push circle1 around with the mouse if done correctly!
         Vector2 mtv = Vector2Zeros;
         bool collision = HitTestCircles(circle1.pos, circle1.collider.radius, circle2.pos, circle2.collider.radius, &mtv);
         circle1.pos += mtv;
@@ -190,24 +208,48 @@ class CirclePlaneTestScene : public Scene
 public:
     void Load() final
     {
-        circle = {};
-        circle.pos = { 400.0f, 400.0f };
-        circle.mass_inverse = 1.0f;
-        circle.gravity_scale = 1.0f;
-        circle.drag = 1.0f;
-        circle.collider.type = COLLIDER_TYPE_CIRCLE;
-        circle.collider.radius = 20.0f;
+        Vector2 launch_force = Vector2UnitY * -10000.0f;
+
+        circle_light = {};
+        circle_light.pos = { 200.0f, 400.0f };
+        circle_light.mass = 1.0f;
+        circle_light.gravity_scale = 1.0f;
+        circle_light.drag = 1.0f;
+        circle_light.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_light.collider.radius = 20.0f;
+
+        circle_medium = {};
+        circle_medium.pos = { 400.0f, 400.0f };
+        circle_medium.mass = 2.0f;
+        circle_medium.gravity_scale = 1.0f;
+        circle_medium.drag = 1.0f;
+        circle_medium.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_medium.collider.radius = 20.0f;
+
+        circle_heavy = {};
+        circle_heavy.pos = { 600.0f, 400.0f };
+        circle_heavy.mass = 5.0f;
+        circle_heavy.gravity_scale = 1.0f;
+        circle_heavy.drag = 1.0f;
+        circle_heavy.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_heavy.collider.radius = 20.0f;
+
+        circle_light.force += launch_force;
+        circle_medium.force += launch_force;
+        circle_heavy.force += launch_force;
 
         plane = {};
         plane.pos = { 400.0f, 600.0f };
         plane.collider.type = COLLIDER_TYPE_PLANE;
-        plane.collider.normal = Vector2Rotate(Vector2UnitX, -45.0F * DEG2RAD);
+        plane.collider.normal = Vector2Rotate(Vector2UnitX, -75.0F * DEG2RAD);
     }
 
     void Update(float dt) final
     {
-        circle.collision = plane.collision = false;
-        UpdateMotion(&circle, dt);
+        circle_light.collision = circle_medium.collision = circle_heavy.collision = plane.collision = false;
+        UpdateMotion(&circle_light, dt);
+        UpdateMotion(&circle_medium, dt);
+        UpdateMotion(&circle_heavy, dt);
         UpdateMotion(&plane, dt);
 
         if (IsKeyDown(KEY_E))
@@ -215,33 +257,48 @@ public:
         if (IsKeyDown(KEY_Q))
             plane.collider.normal = Vector2Rotate(plane.collider.normal, -100.0f * DEG2RAD * dt);
 
-        Vector2 mtv = Vector2Zeros;
-        bool collision = HitTestCirclePlane(circle.pos, circle.collider.radius, plane.pos, plane.collider.normal, &mtv);
-        circle.pos += mtv;
-        circle.collision |= collision;
-        plane.collision |= collision;
+        Vector2 mtv_light = Vector2Zeros;
+        Vector2 mtv_medium = Vector2Zeros;
+        Vector2 mtv_heavy = Vector2Zeros;
+        bool collision_light = HitTestCirclePlane(circle_light.pos, circle_light.collider.radius, plane.pos, plane.collider.normal, &mtv_light);
+        bool collision_medium = HitTestCirclePlane(circle_medium.pos, circle_medium.collider.radius, plane.pos, plane.collider.normal, &mtv_medium);
+        bool collision_heavy = HitTestCirclePlane(circle_heavy.pos, circle_heavy.collider.radius, plane.pos, plane.collider.normal, &mtv_heavy);
+
+        circle_light.pos += mtv_light;
+        circle_medium.pos += mtv_medium;
+        circle_heavy.pos += mtv_heavy;
+
+        circle_light.collision |= collision_light;
+        circle_medium.collision |= collision_medium;
+        circle_heavy.collision |= collision_heavy;
+
+        plane.collision |= collision_light || collision_medium || collision_heavy;
     }
 
     void Draw() final
     {
-        DrawBody(circle, circle.collision ? RED : GREEN);
+        DrawBody(circle_light, circle_light.collision ? RED : GREEN);
+        DrawBody(circle_medium, circle_medium.collision ? RED : GREEN);
+        DrawBody(circle_heavy, circle_heavy.collision ? RED : GREEN);
         DrawBody(plane, plane.collision ? RED : GREEN);
-        DrawProjCirclePlane(circle, plane);
+        //DrawProjCirclePlane(circle_light, plane);
     }
 
 private:
-    PhysicsBody circle;
+    PhysicsBody circle_light;
+    PhysicsBody circle_medium;
+    PhysicsBody circle_heavy;
     PhysicsBody plane;
 
-    void DrawProjCirclePlane(PhysicsBody circle, PhysicsBody plane)
+    void DrawProjCirclePlane(PhysicsBody circle_light, PhysicsBody plane)
     {
-        Vector2 to_circle = circle.pos - plane.pos;
+        Vector2 to_circle = circle_light.pos - plane.pos;
         float scalar_proj = Vector2DotProduct(to_circle, plane.collider.normal);
-        bool collision = scalar_proj <= circle.collider.radius;
+        bool collision = scalar_proj <= circle_light.collider.radius;
         Color test_color = collision ? RED : GREEN;
         Vector2 proj = plane.pos + plane.collider.normal * scalar_proj;
         DrawLineEx(plane.pos, proj, 4.0f, PURPLE);
-        DrawLineEx(circle.pos, proj, 2.0f, VIOLET);
+        DrawLineEx(circle_light.pos, proj, 2.0f, VIOLET);
         DrawCircleV(proj, 5.0f, ORANGE);
     }
 };
@@ -298,19 +355,19 @@ public:
         {
             time = 0.0f;
 
-            PhysicsBody circle{};
-            circle.pos = { 400.0f, 400.0f };
-            circle.vel = Vector2Rotate(Vector2UnitY * -1.0f, GetRandomValue(-60, 60) * DEG2RAD) * 100.0f;
-            circle.mass_inverse = 1.0f;
-            circle.gravity_scale = 1.0f;
-            circle.drag = 1.0f;
-            circle.collider.type = COLLIDER_TYPE_CIRCLE;
-            circle.collider.radius = 20.0f;
-            circle.color.r = GetRandomValue(0, 255);
-            circle.color.g = GetRandomValue(0, 255);
-            circle.color.b = GetRandomValue(0, 255);
-            circle.color.a = 255;
-            bodies.push_back(circle);
+            PhysicsBody circle_light{};
+            circle_light.pos = { 400.0f, 400.0f };
+            circle_light.vel = Vector2Rotate(Vector2UnitY * -1.0f, GetRandomValue(-60, 60) * DEG2RAD) * 100.0f;
+            circle_light.mass = 1.0f;
+            circle_light.gravity_scale = 1.0f;
+            circle_light.drag = 1.0f;
+            circle_light.collider.type = COLLIDER_TYPE_CIRCLE;
+            circle_light.collider.radius = 20.0f;
+            circle_light.color.r = GetRandomValue(0, 255);
+            circle_light.color.g = GetRandomValue(0, 255);
+            circle_light.color.b = GetRandomValue(0, 255);
+            circle_light.color.a = 255;
+            bodies.push_back(circle_light);
         }
 
         for (PhysicsBody& body : bodies)
@@ -330,7 +387,7 @@ public:
                 PhysicsBody* b = &bodies[j];
 
                 // No point in testing for collision between two static bodies
-                if (FloatEquals(a->mass_inverse, 0.0f), FloatEquals(b->mass_inverse, 0.0f)) continue;
+                if (FloatEquals(a->mass, 0.0f), FloatEquals(b->mass, 0.0f)) continue;
 
                 // Demo-specific hack so we don't deal with circle-circle collision
                 if (a->collider.type == COLLIDER_TYPE_CIRCLE && b->collider.type == COLLIDER_TYPE_CIRCLE) continue;
@@ -348,7 +405,7 @@ public:
                 a->collision = b->collision |= collision;
 
                 // Swap A and B if A is static because B MUST be dynamic
-                if (FloatEquals(a->mass_inverse, 0.0f))
+                if (FloatEquals(a->mass, 0.0f))
                 {
                     PhysicsBody* temp = a;  // Store the static entity
                     a = b;                  // A is now the dynamic entity
@@ -394,10 +451,11 @@ int main()
     scenes[SCENE_CIRCLE_PLANE] = new CirclePlaneTestScene;
     scenes[SCENE_BALL_PIT] = new BallPitScene;
 
-    int scene_index = SCENE_COUNT - 1;
+    int scene_index = SCENE_CIRCLE_PLANE;//SCENE_COUNT - 1;
     scenes[scene_index]->Load();
     SetWindowTitle(scene_names[scene_index]);
 
+    int frame_count = 0;
     while (!WindowShouldClose())
     {
         if (IsKeyPressed(KEY_TAB))
@@ -408,14 +466,26 @@ int main()
             SetWindowTitle(scene_names[scene_index]);
         }
 
-        float dt = GetFrameTime();
-        scenes[scene_index]->Update(dt);
+        if (IsKeyPressed(KEY_R))
+        {
+            scenes[scene_index]->Unload();
+            scenes[scene_index]->Load();
+        }
+
+        // GetFrameTime() is unstable on frames 0 and 1
+        if (frame_count >= 2)
+        {
+            float dt = GetFrameTime();
+            scenes[scene_index]->Update(dt);
+        }
 
         BeginDrawing();
         ClearBackground(WHITE);
         DrawFPS(720, 10);
         scenes[scene_index]->Draw();
         EndDrawing();
+
+        frame_count++;
     }
 
     scenes[scene_index]->Unload();
