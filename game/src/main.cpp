@@ -6,12 +6,6 @@
 #include <vector>
 #include <cassert>
 
-enum TestType : int
-{
-    TEST_CIRCLES,
-    TEST_CIRCLE_PLANE
-};
-
 enum ColliderType
 {
     COLLIDER_TYPE_NONE,
@@ -35,6 +29,8 @@ struct Collider
     };
 };
 
+constexpr Vector2 GRAVITY = { 0.0f, 100.0f };
+
 struct PhysicsBody
 {
     Vector2 pos;
@@ -42,15 +38,35 @@ struct PhysicsBody
     Vector2 force;
 
     float gravity_scale;
-    float mass;
+    float mass_inverse;
     float drag;
+
+    float coeff_friction;
+    //float coeff_restitution; <-- LE7
 
     Collider collider;
     bool collision;
     Color color;
 };
 
-constexpr Vector2 GRAVITY = { 0.0f, 100.0f };
+inline float BodyMass(PhysicsBody body)
+{
+    float mass = FloatEquals(body.mass_inverse, 0.0f) ? 0.0f : 1.0f / body.mass_inverse;
+    return mass;
+}
+
+inline Vector2 BodyAcc(PhysicsBody body)
+{
+    Vector2 acc = body.force * body.mass_inverse;
+    return acc;
+}
+
+inline Vector2 Vector2Tangent(Vector2 v, Vector2 normal)
+{
+    float proj = Vector2DotProduct(v, normal);
+    Vector2 tangent = v - normal * proj;
+    return tangent;
+}
 
 // MTV resolves A from B
 bool HitTestCircles(Vector2 pos_a, float radius_a, Vector2 pos_b, float radius_b, Vector2* mtv = nullptr)
@@ -83,26 +99,7 @@ bool HitTestCirclePlane(Vector2 pos_circle, float radius, Vector2 pos_plane, Vec
 
 void UpdateMotion(PhysicsBody* body, float dt)
 {
-    // Don't update static entities (plus you'd get a divide-by-zero error if you did)!
-    if (FloatEquals(body->mass, 0.0f)) return;
-
-    // Gravity is the ONLY force we are applying automatically in our engine
-    //Vector2 fg = GRAVITY * body->gravity_scale * body->mass; // F = ma
-    //body->force += fg;
-
-    // Additional forces are accumulated manually
-    //Vector2 acc = body->force / body->mass; // a = F / m
-
-    // Can accumulate gravitational acceleration directly instead of deriving it from force of gravity;
-    // Above, we multiply g by m, only to divide F by m when calculating a. m / m cancels!
-    // 
-    // Intuitively, why does this work?
-    // Although heavier objects experience a larger force of gravity,
-    // they are also more resistant to change (due to having a larger mass)
-    // More gravitational force, but also more resistant to change = same gravitational *acceleration* for all objects.
-
-    // TODO -- revert to mass_inverse because it makes impulse calculations easier!
-    Vector2 acc = body->force / body->mass;
+    Vector2 acc = body->force * body->mass_inverse;
     acc += GRAVITY * body->gravity_scale;
 
     body->vel += acc * dt;
@@ -142,6 +139,9 @@ enum SceneType : int
     SCENE_CIRCLES,
     SCENE_CIRCLE_PLANE,
     SCENE_BALL_PIT,
+    SCENE_FRICTION,
+    //SCENE_IMPULSE,    <-- Lab Exercise 7 
+    //SCENE_AABB,       <-- Lab Exercise 8
     SCENE_COUNT
 };
 
@@ -152,14 +152,14 @@ public:
     {
         circle1 = {};
         circle1.pos = { 400.0f, 400.0f };
-        circle1.mass = 1.0f;
+        circle1.mass_inverse = 1.0f;
         circle1.drag = 1.0f;
         circle1.collider.type = COLLIDER_TYPE_CIRCLE;
         circle1.collider.radius = 20.0f;
 
         circle2 = {};
         circle2.pos = { 400.0f, 600.0f };
-        circle2.mass = 1.0f;
+        circle2.mass_inverse = 1.0f;
         circle2.drag = 1.0f;
         circle2.collider.type = COLLIDER_TYPE_CIRCLE;
         circle2.collider.radius = 20.0f;
@@ -212,7 +212,7 @@ public:
 
         circle_light = {};
         circle_light.pos = { 200.0f, 400.0f };
-        circle_light.mass = 1.0f;
+        circle_light.mass_inverse = 1.0f / 1.0f;
         circle_light.gravity_scale = 1.0f;
         circle_light.drag = 1.0f;
         circle_light.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -220,7 +220,7 @@ public:
 
         circle_medium = {};
         circle_medium.pos = { 400.0f, 400.0f };
-        circle_medium.mass = 2.0f;
+        circle_medium.mass_inverse = 1.0f / 2.0f;
         circle_medium.gravity_scale = 1.0f;
         circle_medium.drag = 1.0f;
         circle_medium.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -228,7 +228,7 @@ public:
 
         circle_heavy = {};
         circle_heavy.pos = { 600.0f, 400.0f };
-        circle_heavy.mass = 5.0f;
+        circle_heavy.mass_inverse = 1.0f / 5.0f;
         circle_heavy.gravity_scale = 1.0f;
         circle_heavy.drag = 1.0f;
         circle_heavy.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -281,7 +281,6 @@ public:
         DrawBody(circle_medium, circle_medium.collision ? RED : GREEN);
         DrawBody(circle_heavy, circle_heavy.collision ? RED : GREEN);
         DrawBody(plane, plane.collision ? RED : GREEN);
-        //DrawProjCirclePlane(circle_light, plane);
     }
 
 private:
@@ -289,18 +288,6 @@ private:
     PhysicsBody circle_medium;
     PhysicsBody circle_heavy;
     PhysicsBody plane;
-
-    void DrawProjCirclePlane(PhysicsBody circle_light, PhysicsBody plane)
-    {
-        Vector2 to_circle = circle_light.pos - plane.pos;
-        float scalar_proj = Vector2DotProduct(to_circle, plane.collider.normal);
-        bool collision = scalar_proj <= circle_light.collider.radius;
-        Color test_color = collision ? RED : GREEN;
-        Vector2 proj = plane.pos + plane.collider.normal * scalar_proj;
-        DrawLineEx(plane.pos, proj, 4.0f, PURPLE);
-        DrawLineEx(circle_light.pos, proj, 2.0f, VIOLET);
-        DrawCircleV(proj, 5.0f, ORANGE);
-    }
 };
 
 class BallPitScene : public Scene
@@ -358,7 +345,7 @@ public:
             PhysicsBody circle_light{};
             circle_light.pos = { 400.0f, 400.0f };
             circle_light.vel = Vector2Rotate(Vector2UnitY * -1.0f, GetRandomValue(-60, 60) * DEG2RAD) * 100.0f;
-            circle_light.mass = 1.0f;
+            circle_light.mass_inverse = 1.0f;
             circle_light.gravity_scale = 1.0f;
             circle_light.drag = 1.0f;
             circle_light.collider.type = COLLIDER_TYPE_CIRCLE;
@@ -387,7 +374,7 @@ public:
                 PhysicsBody* b = &bodies[j];
 
                 // No point in testing for collision between two static bodies
-                if (FloatEquals(a->mass, 0.0f), FloatEquals(b->mass, 0.0f)) continue;
+                if (FloatEquals(a->mass_inverse, 0.0f), FloatEquals(b->mass_inverse, 0.0f)) continue;
 
                 // Demo-specific hack so we don't deal with circle-circle collision
                 if (a->collider.type == COLLIDER_TYPE_CIRCLE && b->collider.type == COLLIDER_TYPE_CIRCLE) continue;
@@ -405,7 +392,7 @@ public:
                 a->collision = b->collision |= collision;
 
                 // Swap A and B if A is static because B MUST be dynamic
-                if (FloatEquals(a->mass, 0.0f))
+                if (FloatEquals(a->mass_inverse, 0.0f))
                 {
                     PhysicsBody* temp = a;  // Store the static entity
                     a = b;                  // A is now the dynamic entity
@@ -435,6 +422,78 @@ private:
     std::vector<PhysicsBody> bodies;
 };
 
+class FrictionScene : public Scene
+{
+public:
+    void Load() final
+    {
+        plane = {};
+        plane.pos = { 400.0f, 600.0f };
+        plane.collider.type = COLLIDER_TYPE_PLANE;
+        plane.collider.normal = Vector2Rotate(Vector2UnitX, -75.0F * DEG2RAD);
+
+        Vector2 launch_force = Vector2UnitY * -10000.0f;
+
+        circle_light_sticky = {};
+        circle_light_sticky.pos = { 200.0f, 400.0f };
+
+        circle_light_sticky.mass_inverse = 1.0f / 2.0f;
+        circle_light_sticky.coeff_friction = 0.1f;
+
+        circle_light_sticky.gravity_scale = 1.0f;
+        circle_light_sticky.drag = 1.0f;
+
+        circle_light_sticky.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_light_sticky.collider.radius = 20.0f;
+
+        circle_light_sticky.force += launch_force;
+    }
+
+    void Update(float dt) final
+    {
+        if (IsKeyDown(KEY_E))
+            plane.collider.normal = Vector2Rotate(plane.collider.normal, 100.0f * DEG2RAD * dt);
+        if (IsKeyDown(KEY_Q))
+            plane.collider.normal = Vector2Rotate(plane.collider.normal, -100.0f * DEG2RAD * dt);
+
+        UpdateMotion(&circle_light_sticky, dt);
+
+        Vector2 mtv = Vector2Zeros;
+        circle_light_sticky.collision = HitTestCirclePlane(circle_light_sticky.pos, circle_light_sticky.collider.radius, plane.pos, plane.collider.normal, &mtv);
+        circle_light_sticky.pos += mtv;
+    }
+
+    void Draw() final
+    {
+        DrawBody(plane, LIGHTGRAY);
+
+        DrawBody(circle_light_sticky, RED);
+
+        Vector2 fg = GRAVITY / circle_light_sticky.mass_inverse;
+        Vector2 fn = plane.collider.normal * Vector2Length(fg);
+        Vector2 ff = Vector2Tangent(circle_light_sticky.vel * -1.0f, plane.collider.normal);
+
+        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + fg, 4.0f, PURPLE);
+        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + fn, 4.0f, GREEN);
+        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + ff, 4.0f, GOLD);
+    }
+
+private:
+
+    // LE6 TODO -- setup the remaining 3 circles accordingly and add them to the simulation!
+    PhysicsBody circle_light_sticky;
+    //PhysicsBody circle_light_grippy;
+    //PhysicsBody circle_heavy_sticky;
+    //PhysicsBody circle_heavy_grippy;
+    PhysicsBody plane;
+
+    // LE6 TODO -- complete this function
+    void DrawForces(PhysicsBody circle_light, PhysicsBody plane)
+    {
+
+    }
+};
+
 int main()
 {
     InitWindow(800, 800, "Physics-1");
@@ -445,13 +504,15 @@ int main()
     scene_names[SCENE_CIRCLES] = "Circle-Circle Test";
     scene_names[SCENE_CIRCLE_PLANE] = "Circle-Plane Test";
     scene_names[SCENE_BALL_PIT] = "Ball Pit";
+    scene_names[SCENE_FRICTION] = "Friction Test";
 
     Scene* scenes[SCENE_COUNT];
     scenes[SCENE_CIRCLES] = new CircleTestScene;
     scenes[SCENE_CIRCLE_PLANE] = new CirclePlaneTestScene;
     scenes[SCENE_BALL_PIT] = new BallPitScene;
+    scenes[SCENE_FRICTION] = new FrictionScene;
 
-    int scene_index = SCENE_CIRCLE_PLANE;//SCENE_COUNT - 1;
+    int scene_index = SCENE_COUNT - 1;
     scenes[scene_index]->Load();
     SetWindowTitle(scene_names[scene_index]);
 
