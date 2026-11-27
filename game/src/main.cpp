@@ -1,3 +1,9 @@
+/*
+Author:     Alexander Mundt 101632886
+Class:      GAME2005
+Professor:  Connor Smiley
+Assignment: Lab Exercise 6
+*/
 #include "raylib.h"
 #include "raymath.h"
 #include "raygui.h"
@@ -434,8 +440,9 @@ public:
 
         Vector2 launch_force = Vector2UnitY * -10000.0f;
 
+        //Circle 1 light sticky
         circle_light_sticky = {};
-        circle_light_sticky.pos = { 200.0f, 400.0f };
+        circle_light_sticky.pos = { 100.0f, 400.0f };
 
         circle_light_sticky.mass_inverse = 1.0f / 2.0f;
         circle_light_sticky.coeff_friction = 0.1f;
@@ -447,6 +454,51 @@ public:
         circle_light_sticky.collider.radius = 20.0f;
 
         circle_light_sticky.force += launch_force;
+
+        //Circle 2 light grippy
+        circle_light_grippy = {};
+        circle_light_grippy.pos = { 200.0f, 400.0f };
+
+        circle_light_grippy.mass_inverse = 1.0f / 2.0f;
+        circle_light_grippy.coeff_friction = 0.8f;
+
+        circle_light_grippy.gravity_scale = 1.0f;
+        circle_light_grippy.drag = 1.0f;
+
+        circle_light_grippy.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_light_grippy.collider.radius = 20.0f;
+
+        circle_light_grippy.force += launch_force;
+
+        //Circle 3 heavy sticky
+        circle_heavy_sticky = {};
+        circle_heavy_sticky.pos = { 300.0f, 400.0f };
+
+        circle_heavy_sticky.mass_inverse = 1.0f / 8.0f;
+        circle_heavy_sticky.coeff_friction = 0.1f;
+
+        circle_heavy_sticky.gravity_scale = 1.0f;
+        circle_heavy_sticky.drag = 1.0f;
+
+        circle_heavy_sticky.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_heavy_sticky.collider.radius = 20.0f;
+
+        circle_heavy_sticky.force += launch_force;
+
+        //Circle 4 heavy grippy
+        circle_heavy_grippy = {};
+        circle_heavy_grippy.pos = { 400.0f, 400.0f };
+
+        circle_heavy_grippy.mass_inverse = 1.0f / 8.0f;
+        circle_heavy_grippy.coeff_friction = 0.8f;
+
+        circle_heavy_grippy.gravity_scale = 1.0f;
+        circle_heavy_grippy.drag = 1.0f;
+
+        circle_heavy_grippy.collider.type = COLLIDER_TYPE_CIRCLE;
+        circle_heavy_grippy.collider.radius = 20.0f;
+
+        circle_heavy_grippy.force += launch_force;
     }
 
     void Update(float dt) final
@@ -456,11 +508,54 @@ public:
         if (IsKeyDown(KEY_Q))
             plane.collider.normal = Vector2Rotate(plane.collider.normal, -100.0f * DEG2RAD * dt);
 
-        UpdateMotion(&circle_light_sticky, dt);
-
+        //Circle 1 light sticky
         Vector2 mtv = Vector2Zeros;
         circle_light_sticky.collision = HitTestCirclePlane(circle_light_sticky.pos, circle_light_sticky.collider.radius, plane.pos, plane.collider.normal, &mtv);
+        Vector2 fNet = Vector2Zeros;
+        if (circle_light_sticky.collision)
+        {
+            fNet = CalculateFriction(circle_light_sticky, plane);
+        }
         circle_light_sticky.pos += mtv;
+        circle_light_sticky.force += fNet;
+
+        //Circle 2 light grippy
+        mtv = Vector2Zeros;
+        circle_light_grippy.collision = HitTestCirclePlane(circle_light_grippy.pos, circle_light_grippy.collider.radius, plane.pos, plane.collider.normal, &mtv);
+        fNet = Vector2Zeros;
+        if (circle_light_grippy.collision)
+        {
+            fNet = CalculateFriction(circle_light_grippy, plane);
+        }
+        circle_light_grippy.pos += mtv;
+        circle_light_grippy.force += fNet;
+
+        //Circle 3 heavy sticky
+        mtv = Vector2Zeros;
+        circle_heavy_sticky.collision = HitTestCirclePlane(circle_heavy_sticky.pos, circle_heavy_sticky.collider.radius, plane.pos, plane.collider.normal, &mtv);
+        fNet = Vector2Zeros;
+        if (circle_heavy_sticky.collision)
+        {
+            fNet = CalculateFriction(circle_heavy_sticky, plane);
+        }
+        circle_heavy_sticky.pos += mtv;
+        circle_heavy_sticky.force += fNet;
+
+        //Circle 3 heavy sticky
+        mtv = Vector2Zeros;
+        circle_heavy_grippy.collision = HitTestCirclePlane(circle_heavy_grippy.pos, circle_heavy_grippy.collider.radius, plane.pos, plane.collider.normal, &mtv);
+        fNet = Vector2Zeros;
+        if (circle_heavy_grippy.collision)
+        {
+            fNet = CalculateFriction(circle_heavy_grippy, plane);
+        }
+        circle_heavy_grippy.pos += mtv;
+        circle_heavy_grippy.force += fNet;
+
+        UpdateMotion(&circle_light_sticky, dt);
+        UpdateMotion(&circle_light_grippy, dt);
+        UpdateMotion(&circle_heavy_sticky, dt);
+        UpdateMotion(&circle_heavy_grippy, dt);
     }
 
     void Draw() final
@@ -468,29 +563,46 @@ public:
         DrawBody(plane, LIGHTGRAY);
 
         DrawBody(circle_light_sticky, RED);
+        DrawBody(circle_light_grippy, GREEN);
+        DrawBody(circle_heavy_sticky, BLUE);
+        DrawBody(circle_heavy_grippy, YELLOW);
 
-        Vector2 fg = GRAVITY / circle_light_sticky.mass_inverse;
-        Vector2 fn = plane.collider.normal * Vector2Length(fg);
-        Vector2 ff = Vector2Tangent(circle_light_sticky.vel * -1.0f, plane.collider.normal);
-
-        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + fg, 4.0f, PURPLE);
-        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + fn, 4.0f, GREEN);
-        DrawLineEx(circle_light_sticky.pos, circle_light_sticky.pos + ff, 4.0f, GOLD);
+        DrawForces(circle_light_sticky, plane);
+        DrawForces(circle_light_grippy, plane);
+        DrawForces(circle_heavy_sticky, plane);
+        DrawForces(circle_heavy_grippy, plane);
     }
 
 private:
 
     // LE6 TODO -- setup the remaining 3 circles accordingly and add them to the simulation!
     PhysicsBody circle_light_sticky;
-    //PhysicsBody circle_light_grippy;
-    //PhysicsBody circle_heavy_sticky;
-    //PhysicsBody circle_heavy_grippy;
+    PhysicsBody circle_light_grippy;
+    PhysicsBody circle_heavy_sticky;
+    PhysicsBody circle_heavy_grippy;
     PhysicsBody plane;
 
     // LE6 TODO -- complete this function
-    void DrawForces(PhysicsBody circle_light, PhysicsBody plane)
+    void DrawForces(PhysicsBody circle, PhysicsBody plane)
     {
+        Vector2 fg = GRAVITY / circle.mass_inverse;
+        Vector2 fn = plane.collider.normal * Vector2Length(fg);
+        Vector2 ff = Vector2Tangent(circle.vel * -circle.coeff_friction, plane.collider.normal);
 
+        DrawLineEx(circle.pos, circle.pos + fn, 4.0f, GREEN);
+        DrawLineEx(circle.pos, circle.pos + ff, 4.0f, ORANGE);
+        DrawLineEx(circle.pos, circle.pos + fg, 4.0f, PURPLE);
+        DrawLineEx(circle.pos, circle.pos + circle.vel * 0.5, 4.0f, RED);
+    }
+
+    Vector2 CalculateFriction(PhysicsBody circle, PhysicsBody plane)
+    {
+        Vector2 fg = GRAVITY / circle.mass_inverse;
+        Vector2 fn = plane.collider.normal * Vector2Length(fg);
+        Vector2 ff = Vector2Tangent(circle.vel * -circle.coeff_friction, plane.collider.normal);
+
+        //We are already applying the force of gravity elsewhere so just add the remaining two factors in
+        return fn + ff;
     }
 };
 
